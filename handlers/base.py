@@ -3,8 +3,14 @@ import os
 from utils.alerts import alert_exception, alert_info
 from typing import List
 from pinecone import Pinecone, ServerlessSpec
+from langchain.prompts import (
+    ChatPromptTemplate,
+    HumanMessagePromptTemplate,
+    SystemMessagePromptTemplate,
+)
+from langchain.memory import ConversationBufferMemory
 from langchain_pinecone import PineconeVectorStore
-from langchain.chains import ConversationalRetrievalChain
+from langchain.chains import (LLMChain, ConversationalRetrievalChain)
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai.chat_models import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
@@ -169,11 +175,17 @@ class BaseHandler():
             namespace: str
             search_kwargs: dict
         """
+
+        # OK FUNZIONA
+        # ChatGPT bot test
+        # bot = ChatOpenAI(model='gpt-3.5-turbo', temperature=0.7, openai_api_key=os.getenv('OPENAI_API_KEY'))
+        # bot.invoke("Ciao, dimmmi qualcosa")
+
         # alert_info(f"Querying with: {query} and chat history: {chat_history}\nParams: namespace={kwargs.get('namespace', None)}, search_kwargs={kwargs.get('search_kwargs', {'k': 5})}\nModel: {self.llm.model_name} with temperature: {self.llm.temperature}")
         try: 
             pc = Pinecone(api_key = self.pinecone_api_key)
 
-            vectorstore = Pinecone.from_existing_index(
+            vectorstore = PineconeVectorStore.from_existing_index(
                 index_name=self.pinecone_index, 
                 embedding=self.embeddings, 
                 text_key='text', 
@@ -182,24 +194,43 @@ class BaseHandler():
 
             retriever = vectorstore.as_retriever(search_kwargs=kwargs.get('search_kwargs', {"k": 5}))
 
-            bot = ConversationalRetrievalChain.from_llm(
-                self.llm_map[self.chat_model], 
-                retriever, 
-                return_source_documents=True
-            )
 
-        # question_generator = LLMChain(llm=self.llm, prompt=CONDENSE_QUESTION_PROMPT)
-        # doc_chain = load_qa_chain(self.streaming_llm, chain_type="stuff", prompt=QA_PROMPT)
+            # FAIL
+            # bot = ConversationalRetrievalChain.from_llm(
+            #     self.llm_map[self.chat_model], 
+            #     retriever, 
+            #     return_source_documents=True
+            # )
+            # result = bot.invoke({"question": query, "chat_history": chat_history})
 
-        # bot = ConversationalRetrievalChain(
-        #     retriever=retriever,
-        #     combine_docs_chain=doc_chain,
-        #     question_generator=question_generator,
-        #     return_source_documents=True,
-        # )
-
-            result = bot.invoke({"question": query, "chat_history": chat_history})
-            return result
+            # FAIL
+            # template = (
+            #     "Combine the chat history and follow up question into "
+            #     "a standalone question. Chat History: {chat_history}"
+            #     "Follow up question: {query}"
+            # )
+            # prompt = PromptTemplate.from_template(template)
+            # question_generator_chain = LLMChain(llm=self.llm_map[self.chat_model], prompt=prompt)
+            # result = ConversationalRetrievalChain(retriever=retriever,
+            #     question_generator=question_generator_chain,
+            # )
+ 
+            memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+            conversation_chain = ConversationalRetrievalChain.from_llm(
+                    llm=self.llm_map[self.chat_model],
+                    retriever=retriever,
+                    memory=memory,
+                    combine_docs_chain_kwargs={
+                        "prompt": ChatPromptTemplate.from_messages(
+                            [
+                                "",
+                                query,
+                            ]
+                        ),
+                    },
+                )
+            
+            return conversation_chain
         except Exception as e:
             alert_exception(e, "Error chatting")
             raise HTTPException(status_code=500, detail=f"Error chatting: {str(e)}")
