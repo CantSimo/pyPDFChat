@@ -1,26 +1,17 @@
 import tempfile
-import pinecone
 import os
 from utils.alerts import alert_exception, alert_info
 from typing import List
-from pinecone.core.client.exceptions import ApiException
-from pinecone.core.client.configuration import Configuration as OpenApiConfiguration
+from pinecone import Pinecone, ServerlessSpec
+from langchain_pinecone import PineconeVectorStore
 from langchain.chains import ConversationalRetrievalChain
-from langchain_openai.embeddings import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_openai.chat_models import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
-from langchain_community.vectorstores.pinecone import Pinecone
 from langchain_community.document_loaders import TextLoader, PyMuPDFLoader, Docx2txtLoader
 from fastapi import UploadFile
 from fastapi import HTTPException
 from dotenv import load_dotenv
-# from langchain.chains.question_answering import load_qa_chain
-# from langchain.chains.llm import LLMChain
-# from langchain.chains.conversational_retrieval.prompts import (
-# from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-# )
-#     QA_PROMPT,
-#     CONDENSE_QUESTION_PROMPT,
 from langchain.text_splitter import (
     TokenTextSplitter,
     TextSplitter,
@@ -54,7 +45,7 @@ class BaseHandler():
         ):
 
         self.pinecone_api_key = os.getenv('PINECONE_API_KEY')
-        self.pinecone_env = os.getenv('PINECONE_ENV')
+        self.pinecone_env = os.getenv('PINECONE_ENVIRONMENT')
         self.pinecone_index = os.getenv('PINECONE_INDEX')
         self.llm_map = {
             'gpt-4': lambda: ChatOpenAI(model='gpt-4', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
@@ -128,7 +119,8 @@ class BaseHandler():
         kwargs:
             split_method: 'recursive', 'token', 'text', 'tokenizer', 'language', 'json', 'latex', 'python', 'konlpy', 'spacy', 'nltk', 'sentence_transformers', 'element_type', 'header_type', 'line_type', 'html_header', 'markdown_header', 'markdown', 'character'
         """
-        pinecone.init(api_key=self.pinecone_api_key, environment=self.pinecone_env)
+        pc = Pinecone(api_key = self.pinecone_api_key)
+        pc.list_indexes().names()
 
         splitter_map = {
             'recursive': RecursiveCharacterTextSplitter,
@@ -159,13 +151,13 @@ class BaseHandler():
         for document in documents:
             split_document = test_splitter.split_documents(document)  
             try:
-                Pinecone.from_documents(
+                PineconeVectorStore.from_documents(
                     split_document, 
                     self.embeddings, 
                     index_name=self.pinecone_index, 
                     namespace=kwargs.get('namespace', None) # You can only specify a namespace if you have a premium Pinecone pod
                 )
-            except ApiException as e:
+            except Exception as e:
                 alert_exception(e, "Error ingesting documents - Make sure you\'re dimensions match the embeddings model (1536 for text-embedding-3-small, 3072 for text-embedding-3-large)")
                 raise HTTPException(status_code=500, detail=f"Error ingesting documents: {str(e)}")
                 
@@ -179,7 +171,7 @@ class BaseHandler():
         """
         # alert_info(f"Querying with: {query} and chat history: {chat_history}\nParams: namespace={kwargs.get('namespace', None)}, search_kwargs={kwargs.get('search_kwargs', {'k': 5})}\nModel: {self.llm.model_name} with temperature: {self.llm.temperature}")
         try: 
-            pinecone.init(api_key=self.pinecone_api_key, environment=self.pinecone_env)
+            pc = Pinecone(api_key = self.pinecone_api_key)
 
             vectorstore = Pinecone.from_existing_index(
                 index_name=self.pinecone_index, 
@@ -208,9 +200,6 @@ class BaseHandler():
 
             result = bot.invoke({"question": query, "chat_history": chat_history})
             return result
-        except ApiException as e:
-            alert_exception(e, "Pinecone API Error")
-            raise HTTPException(status_code=500, detail=f"Error chatting: {str(e)}")
         except Exception as e:
             alert_exception(e, "Error chatting")
             raise HTTPException(status_code=500, detail=f"Error chatting: {str(e)}")

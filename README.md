@@ -9,12 +9,12 @@
 ## Dev-Setup
 Prerequisites:
 - [Git](https://git-scm.com/downloads) - Free
-- [Pinecone Database](https://youtu.be/tp0bQNDtLPc?t=48) - Free
+- [Pinecone Database] (https://www.pinecone.io) - Free
 - [OpenAI API Key](https://platform.openai.com/account/api-keys) - Billing Required
 
 ```
 
-Reference [example.env](https://github.com/Haste171/langchain-chatbot/blob/main/example.env) to create `.env` file
+Reference [example.env] to create `.env` file
 ```python
 OPENAI_API_KEY=
 PINECONE_API_KEY=
@@ -46,11 +46,6 @@ python3 startup.py
 ✅ Chat UI with source, temperature, vector_k, and other parameter changing abilities
 
 ✅ More features coming very soon
-
-
-Soon:
-- Compatibility with many more files types 
-- Compatibility with offline models (HuggingFace, Vicuna, Alpaca)
 
 # 💻 Contributing
 

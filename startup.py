@@ -5,7 +5,7 @@ print('Make sure to set .env variables.')
 input('Also make sure you are in the Poetry shell before running this... (enter to start)')
 
 def run_app():
-    subprocess.run(['python3', 'app.py'])
+    subprocess.run(['python', 'app.py'])
 
 def run_streamlit():
     subprocess.run(['streamlit', 'run', 'ui/main.py'])
