@@ -1,0 +1,3 @@
+handlers/base.py:
+    # TODO:: Parametrizzare
+    dir_path = "D:\\MyApps\\pyPDFChat\\docs"
