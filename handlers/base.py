@@ -226,9 +226,6 @@ class BaseHandler():
             # So, in the final step, we combine retriever_chain and document_chain using create_retrieval_chain to create a Conversational retrieval chain.
             retrieval_chain = create_retrieval_chain(retriever_chain, document_chain) 
 
-            if not chat_history:
-                chat_history = ["aa"]
-
             response = retrieval_chain.invoke({
             "chat_history":chat_history,
             "input":query
