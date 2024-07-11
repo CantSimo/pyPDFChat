@@ -18,7 +18,7 @@ Reference [example.env] to create `.env` file
 ```python
 OPENAI_API_KEY=
 PINECONE_API_KEY=
-PINECONE_ENV=
+PINECONE_ENVIRONMENT=
 PINECONE_INDEX=
 ```
 
@@ -44,8 +44,6 @@ python3 startup.py
 ✅ Interactive Ingestion UI for files 
 
 ✅ Chat UI with source, temperature, vector_k, and other parameter changing abilities
-
-✅ More features coming very soon
 
 # 💻 Contributing
 

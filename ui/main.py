@@ -44,7 +44,7 @@ def chat_page():
                 st.markdown(data['response']['answer'])
                 st.header("Source Documents")
                 doc_num_init = 1
-                for msg in data['response']['source_documents']:
+                for msg in data['response']['context']:
                     st.markdown(f"""### Document **[{doc_num_init}]**: \n__{msg.get('metadata').get('source')}__\n\n*Page Content:*\n\n```{msg.get('page_content')}```""")
                     doc_num_init += 1
             else:

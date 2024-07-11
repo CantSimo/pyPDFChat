@@ -3,21 +3,23 @@ import os
 from utils.alerts import alert_exception, alert_info
 from typing import List
 from pinecone import Pinecone, ServerlessSpec
-from langchain.prompts import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    SystemMessagePromptTemplate,
+
+from langchain_core.prompts import (
+    ChatPromptTemplate, 
+    MessagesPlaceholder
 )
-from langchain.memory import ConversationBufferMemory
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain_pinecone import PineconeVectorStore
-from langchain.chains import (LLMChain, ConversationalRetrievalChain)
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain.chains import (
+    LLMChain, 
+    ConversationalRetrievalChain, 
+    create_history_aware_retriever, 
+    create_retrieval_chain)
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai.chat_models import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_community.document_loaders import TextLoader, PyMuPDFLoader, Docx2txtLoader
-from fastapi import UploadFile
-from fastapi import HTTPException
-from dotenv import load_dotenv
 from langchain.text_splitter import (
     TokenTextSplitter,
     TextSplitter,
@@ -40,6 +42,10 @@ from langchain.text_splitter import (
     CharacterTextSplitter,
 )
 
+from fastapi import UploadFile
+from fastapi import HTTPException
+from dotenv import load_dotenv
+
 load_dotenv()
 
 class BaseHandler():
@@ -54,13 +60,13 @@ class BaseHandler():
         self.pinecone_env = os.getenv('PINECONE_ENVIRONMENT')
         self.pinecone_index = os.getenv('PINECONE_INDEX')
         self.llm_map = {
-            'gpt-4': lambda: ChatOpenAI(model='gpt-4', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
-            'gpt-4-32k': lambda: ChatOpenAI(model='gpt-4-32k', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
-            'gpt-4-1106-preview': lambda: ChatOpenAI(model='gpt-4', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
-            'gpt-3.5-turbo-16k': lambda: ChatOpenAI(model='gpt-3.5-turbo-16k', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
-            'gpt-3.5-turbo': lambda: ChatOpenAI(model='gpt-3.5-turbo', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
-            'claude-3-sonnet-20240229': lambda: ChatAnthropic(model_name='claude-3-sonnet-20240229', temperature=temperature, anthropic_api_key=os.getenv('ANTHROPIC_API_KEY')),
-            'claude-3-opus-20240229': lambda: ChatAnthropic(model_name='claude-3-opus-20240229', temperature=temperature, anthropic_api_key=os.getenv('ANTHROPIC_API_KEY')),
+            'gpt-4': lambda _: ChatOpenAI(model='gpt-4', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
+            'gpt-4-32k': lambda _: ChatOpenAI(model='gpt-4-32k', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
+            'gpt-4-1106-preview': lambda _: ChatOpenAI(model='gpt-4', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
+            'gpt-3.5-turbo-16k': lambda _: ChatOpenAI(model='gpt-3.5-turbo-16k', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
+            'gpt-3.5-turbo': lambda _: ChatOpenAI(model='gpt-3.5-turbo', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
+            'claude-3-sonnet-20240229': lambda _: ChatAnthropic(model_name='claude-3-sonnet-20240229', temperature=temperature, anthropic_api_key=os.getenv('ANTHROPIC_API_KEY')),
+            'claude-3-opus-20240229': lambda _: ChatAnthropic(model_name='claude-3-opus-20240229', temperature=temperature, anthropic_api_key=os.getenv('ANTHROPIC_API_KEY')),
         }
         self.chat_model = chat_model
         # self.streaming_llm = ChatOpenAI(
@@ -194,45 +200,41 @@ class BaseHandler():
 
             retriever = vectorstore.as_retriever(search_kwargs=kwargs.get('search_kwargs', {"k": 5}))
 
+            # 1 Prompt To Generate Search Query For Retriever
+            prompt_search_query = ChatPromptTemplate.from_messages([
+            MessagesPlaceholder(variable_name="chat_history"),
+            ("user","{input}"),
+            ("user","Given the above conversation, generate a search query to look up to get information relevant to the conversation")
+            ])           
 
-            # FAIL
-            # bot = ConversationalRetrievalChain.from_llm(
-            #     self.llm_map[self.chat_model], 
-            #     retriever, 
-            #     return_source_documents=True
-            # )
-            # result = bot.invoke({"question": query, "chat_history": chat_history})
+            # 2 We use the create_history_aware_retriever chain to retrieve the relevant data from the vector store.
+            llm=self.llm_map[self.chat_model] 
+            retriever_chain = create_history_aware_retriever(llm, retriever, prompt_search_query)   
 
-            # FAIL
-            # template = (
-            #     "Combine the chat history and follow up question into "
-            #     "a standalone question. Chat History: {chat_history}"
-            #     "Follow up question: {query}"
-            # )
-            # prompt = PromptTemplate.from_template(template)
-            # question_generator_chain = LLMChain(llm=self.llm_map[self.chat_model], prompt=prompt)
-            # result = ConversationalRetrievalChain(retriever=retriever,
-            #     question_generator=question_generator_chain,
-            # )
- 
-            memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-            conversation_chain = ConversationalRetrievalChain.from_llm(
-                    llm=self.llm_map[self.chat_model],
-                    retriever=retriever,
-                    memory=memory,
-                    combine_docs_chain_kwargs={
-                        "prompt": ChatPromptTemplate.from_messages(
-                            [
-                                "",
-                                query,
-                            ]
-                        ),
-                    },
-                )
-            
-            return conversation_chain
+            # 3 Prompt To Get Response From LLM Based on Chat History
+            prompt_get_answer = ChatPromptTemplate.from_messages([
+            ("system", "Answer the user's questions based on the below context:\\n\\n{context}"),
+            MessagesPlaceholder(variable_name="chat_history"),
+            ("user","{input}"),
+            ])   
+
+            # 4 Document Chain
+            #  we create a chain using create_stuff_documents_chain which will send the prompt to the llm.
+            document_chain=create_stuff_documents_chain(llm,prompt_get_answer)
+
+            #5 Conversational Retrieval Chain 
+            # So, in the final step, we combine retriever_chain and document_chain using create_retrieval_chain to create a Conversational retrieval chain.
+            retrieval_chain = create_retrieval_chain(retriever_chain, document_chain) 
+
+            if not chat_history:
+                chat_history = ["aa"]
+
+            response = retrieval_chain.invoke({
+            "chat_history":chat_history,
+            "input":query
+            })
+
+            return response
         except Exception as e:
             alert_exception(e, "Error chatting")
             raise HTTPException(status_code=500, detail=f"Error chatting: {str(e)}")
-        # for chunk in result:
-        #     yield chunk
