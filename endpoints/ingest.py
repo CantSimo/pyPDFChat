@@ -12,7 +12,7 @@ async def ingest_documents(
     namespace: Optional[str] = Form(None), 
 ):
     handler = BaseHandler(
-        #embeddings_model='text-embedding-3-large' # Uncomment this kwarg to use the large embeddings model if you have Pinecone configured to that dimension size
+        embeddings_model='text-embedding-3-large' # Uncomment this kwarg to use the large embeddings model if you have Pinecone configured to that dimension size
     )
     documents = handler.load_documents(files, namespace)
     handler.ingest_documents(documents)

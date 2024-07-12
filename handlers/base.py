@@ -208,7 +208,7 @@ class BaseHandler():
                 namespace=kwargs.get('namespace', None) # You can only specify a namespace if you have a premium Pinecone pod
             )
 
-            retriever = vectorstore.as_retriever(search_kwargs=kwargs.get('search_kwargs', {"k": 10}))
+            retriever = vectorstore.as_retriever(search_kwargs=kwargs.get('search_kwargs', {"k": 5}))
 
             # # ***************** NO HISTORY ***********************************************
             # docs = retriever.invoke(query)
