@@ -30,7 +30,7 @@ async def chat(
         chat_model.query, 
         chat_model.chat_history,
         namespace=(chat_model.namespace or None),
-        search_kwargs=({"k": chat_model.vector_fetch_k} or {"k": 5})
+        search_kwargs=({"k": chat_model.vector_fetch_k} or {"k": 10})
     )
     return {"response": response}
     

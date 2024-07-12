@@ -1,7 +1,2 @@
-handlers/base.py:
-    # TODO:: Parametrizzare
-    dir_path = "D:\\MyApps\\pyPDFChat\\docs"
-
-Manage Chat History
-
-if started by Startup.py, app.py can't find module FastApi, at the moment StreamLit and App.py need to be started manually.
+- Manage Chat History
+- if started by Startup.py, app.py can't find module FastApi, at the moment StreamLit and App.py need to be started manually.

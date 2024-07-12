@@ -23,8 +23,8 @@ def chat_page():
     model_selector = st.selectbox("Chat Model", 
     ["gpt-3.5-turbo", "gpt-3.5-turbo-16k", "gpt-4", "gpt-4-32k", "gpt-4-1106-preview", "claude-3-sonnet-20240229", "claude-3-opus-20240229"]
     )
-    temperature = st.slider("Temperature", 0.0, 2.0, 0.7)
-    source_documents = st.slider("Number of Source Documents", 1, 10, 5)
+    temperature = st.slider("Temperature", 0.0, 2.0, 0.2)
+    source_documents = st.slider("Number of Source Documents", 1, 10, 10)
 
     
     if api_endpoint:
