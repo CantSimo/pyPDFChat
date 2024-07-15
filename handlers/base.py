@@ -264,7 +264,7 @@ class BaseHandler():
             prefixSystem = "You are an expert Italian accountant, the topic is the compilation of the PF 2016 form of the Italian state."
             prompt_get_answer = ChatPromptTemplate.from_messages([
             ("system", prefixSystem),
-            ("system", "Answer the user's questions based on the below context:\\n\\n{context}"),
+            ("system", "Answer the user's questions based on the below context, if the context doesn't contain any relevant information to the question, don't make something up and just say 'I don't know':\\n\\n{context}"),
             MessagesPlaceholder(variable_name="chat_history"),
             ("user","{input}"),
             ])   
