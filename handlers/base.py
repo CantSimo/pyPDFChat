@@ -21,6 +21,7 @@ from langchain.chains import (
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai.chat_models import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
+from langchain_community.callbacks.manager import get_openai_callback
 from langchain_community.document_loaders import TextLoader, PyMuPDFLoader, Docx2txtLoader
 from langchain.text_splitter import (
     TokenTextSplitter,
@@ -51,9 +52,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class BaseHandler():
+    #'gpt-3.5-turbo',
     def __init__(
             self,
-            chat_model: str = 'gpt-3.5-turbo',
+            chat_model: str = 'gpt-4o mini', 
             temperature: float = 0.2,
             **kwargs
         ):
@@ -63,6 +65,7 @@ class BaseHandler():
         self.pinecone_index = os.getenv('PINECONE_INDEX')
         self.docs_tmp_path = os.getenv('DOCS_TMP_PATH')
         self.llm_map = {
+            'gpt-4o mini': lambda _: ChatOpenAI(model='gpt-4o mini', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
             'gpt-4': lambda _: ChatOpenAI(model='gpt-4', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
             'gpt-4-32k': lambda _: ChatOpenAI(model='gpt-4-32k', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
             'gpt-4-1106-preview': lambda _: ChatOpenAI(model='gpt-4', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
@@ -277,12 +280,26 @@ class BaseHandler():
             # So, in the final step, we combine retriever_chain and document_chain using create_retrieval_chain to create a Conversational retrieval chain.
             retrieval_chain = create_retrieval_chain(retriever_chain, document_chain) 
 
-            response = retrieval_chain.invoke({
-            "chat_history":chat_history,
-            "input":query
-            })
+            with get_openai_callback() as cb:
+                response = retrieval_chain.invoke({
+                "chat_history":chat_history,
+                "input":query
+                })
 
-            return response
+            # Extract relevant information from cb
+            openai_fee = {
+                "completion_tokens": cb.completion_tokens,  
+                "prompt_tokens": cb.prompt_tokens ,
+                "total_cost": cb.total_cost
+            }
+
+            return {
+                "response": response,
+                "openai_fee": openai_fee
+            }
+
+            # return response
+            
         except Exception as e:
             alert_exception(e, "Error chatting")
             raise HTTPException(status_code=500, detail=f"Error chatting: {str(e)}")

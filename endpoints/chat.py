@@ -7,7 +7,7 @@ router = APIRouter()
 
 class ChatModel(BaseModel):
     query: str
-    model: str = "gpt-3.5-turbo"
+    model: str = 'gpt-4o mini' # "gpt-3.5-turbo"
     temperature: float
     vector_fetch_k: Optional[int] = 5 # Number of vectors to fetch from Pinecone as source documents
     chat_history: list[str] = [] # Example input: [("You are a helpful assistant.", "What is your name?")]
@@ -17,7 +17,7 @@ class ChatModel(BaseModel):
 async def chat( 
     chat_model: ChatModel,
 ):
-    available_models = ["gpt-3.5-turbo", "gpt-3.5-turbo-16k", "gpt-4", "gpt-4-32k", "gpt-4-1106-preview", "claude-3-sonnet-20240229", "claude-3-opus-20240229"]
+    available_models = ["gpt-3.5-turbo", "gpt-3.5-turbo-16k", "gpt-4", "gpt-4-32k", "gpt-4-1106-preview", "claude-3-sonnet-20240229", "claude-3-opus-20240229", "gpt-4o mini"]
 
     if chat_model.model not in available_models:
         raise HTTPException(status_code=400, detail=f"Invalid model name. Please select a valid model from the list of available models: \n{str(available_models)}")
