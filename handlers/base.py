@@ -55,7 +55,7 @@ class BaseHandler():
     #'gpt-3.5-turbo',
     def __init__(
             self,
-            chat_model: str = 'gpt-4o mini', 
+            chat_model: str = 'gpt-4o-mini', 
             temperature: float = 0.2,
             **kwargs
         ):
@@ -65,7 +65,7 @@ class BaseHandler():
         self.pinecone_index = os.getenv('PINECONE_INDEX')
         self.docs_tmp_path = os.getenv('DOCS_TMP_PATH')
         self.llm_map = {
-            'gpt-4o mini': lambda _: ChatOpenAI(model='gpt-4o mini', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
+            'gpt-4o-mini': lambda _: ChatOpenAI(model='gpt-4o-mini', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
             'gpt-4': lambda _: ChatOpenAI(model='gpt-4', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
             'gpt-4-32k': lambda _: ChatOpenAI(model='gpt-4-32k', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
             'gpt-4-1106-preview': lambda _: ChatOpenAI(model='gpt-4', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
