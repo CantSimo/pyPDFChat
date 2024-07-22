@@ -294,8 +294,8 @@ class BaseHandler():
             }
 
             return {
-                "response": response,
-                "openai_fee": openai_fee
+                "model_response": response,
+                "model_fee": openai_fee
             }
 
             # return response

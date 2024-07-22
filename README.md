@@ -1,8 +1,6 @@
 </a>
 
 <!-- *The LangChain Chatbot is an AI chat interface for the open-source library LangChain. It provides conversational answers to questions about vector ingested documents.* -->
-<!-- *Existing repo development is at a freeze while we develop a langchain chat bot website :)* -->
-
 
 # 🚀 Installation
 
@@ -20,6 +18,7 @@ OPENAI_API_KEY=
 PINECONE_API_KEY=
 PINECONE_ENVIRONMENT=
 PINECONE_INDEX=
+DOCS_TMP_PATH=
 ```
 
 ### Install Requirements
