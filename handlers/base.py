@@ -212,41 +212,7 @@ class BaseHandler():
             )
 
             retriever = vectorstore.as_retriever(search_kwargs=kwargs.get('search_kwargs', {"k": 5}))
-
-            # # ***************** NO HISTORY ***********************************************
-            # docs = retriever.invoke(query)
-            # chat=self.llm_map[self.chat_model] 
-
-            # SYSTEM_TEMPLATE = """
-            # Answer the user's questions based on the below context. 
-            # If the context doesn't contain any relevant information to the question, don't make something up and just say "I don't know":
-
-            # <context>
-            # {context}
-            # </context>
-            # """
-            # question_answering_prompt = ChatPromptTemplate.from_messages(
-            #     [
-            #         (
-            #             "system",
-            #             SYSTEM_TEMPLATE,
-            #         ),
-            #         MessagesPlaceholder(variable_name="messages"),
-            #     ]
-            # )
-
-            # document_chain = create_stuff_documents_chain(chat, question_answering_prompt)
-
-            # response = document_chain.invoke(
-            #             {
-            #                 "context": docs,
-            #                 "messages": [
-            #                     HumanMessage(content=query)
-            #                 ],
-            #             }
-            #         )
             
-            # ***************** HISTORY ***********************************************
             # 1 Prompt To Generate Search Query For Retriever
             contextualize_q_system_prompt = """Given a chat history and the latest user question \
             which might reference context in the chat history, formulate a standalone question \
