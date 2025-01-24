@@ -52,7 +52,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class BaseHandler():
-    #'gpt-3.5-turbo',
     def __init__(
             self,
             chat_model: str = 'gpt-4o-mini', 
@@ -66,22 +65,9 @@ class BaseHandler():
         self.docs_tmp_path = os.getenv('DOCS_TMP_PATH')
         self.llm_map = {
             'gpt-4o-mini': lambda _: ChatOpenAI(model='gpt-4o-mini', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
-            'gpt-4': lambda _: ChatOpenAI(model='gpt-4', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
-            'gpt-4-32k': lambda _: ChatOpenAI(model='gpt-4-32k', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
-            'gpt-4-1106-preview': lambda _: ChatOpenAI(model='gpt-4', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
-            'gpt-3.5-turbo-16k': lambda _: ChatOpenAI(model='gpt-3.5-turbo-16k', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
-            'gpt-3.5-turbo': lambda _: ChatOpenAI(model='gpt-3.5-turbo', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
-            'claude-3-sonnet-20240229': lambda _: ChatAnthropic(model_name='claude-3-sonnet-20240229', temperature=temperature, anthropic_api_key=os.getenv('ANTHROPIC_API_KEY')),
-            'claude-3-opus-20240229': lambda _: ChatAnthropic(model_name='claude-3-opus-20240229', temperature=temperature, anthropic_api_key=os.getenv('ANTHROPIC_API_KEY')),
+            'gpt-4o': lambda _: ChatOpenAI(model='gpt-4', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
         }
         self.chat_model = chat_model
-        # self.streaming_llm = ChatOpenAI(
-        #     model=openai_chat_model,
-        #     streaming=True,
-        #     callbacks=[StreamingStdOutCallbackHandler()],
-        #     temperature=0,
-        #     openai_api_key=os.getenv('OPENAI_API_KEY'),
-        # )
 
         if kwargs.get('embeddings_model') == 'text-embedding-3-large':
             self.embeddings = OpenAIEmbeddings(
