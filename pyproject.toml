@@ -27,6 +27,7 @@ langchain-anthropic = "*"
 langchain-community = "*"
 langchain-pinecone = "*"
 langchain-chroma = "*"
+altair = "4.2.2"
 
 [build-system]
 requires = ["poetry-core"]

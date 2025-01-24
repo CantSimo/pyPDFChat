@@ -21,11 +21,10 @@ def chat_page():
     namespace = st.text_input("Namespace (Optional)", value=None)
     # make default model_selector to gpt-3.5-turbo
     model_selector = st.selectbox("Chat Model", 
-    ["gpt-4o-mini", "gpt-3.5-turbo", "gpt-3.5-turbo-16k", "gpt-4", "gpt-4-32k", "gpt-4-1106-preview", "claude-3-sonnet-20240229", "claude-3-opus-20240229"]
+    ["gpt-4o-mini", "gpt-4o"]
     )
     temperature = st.slider("Temperature", 0.0, 2.0, 0.2)
     source_documents = st.slider("Number of Source Documents", 1, 10, 5)
-
     
     if api_endpoint:
         if st.button("Send"):
@@ -55,13 +54,13 @@ def ingest_page():
     FASTAPI_URL = "http://localhost:9091/ingest"  
 
     uploaded_files = st.file_uploader("Upload Document(s)", accept_multiple_files=True)
-    namespace = st.text_input("Namespace (Optional)")
+    documents_namespace = st.text_input("Namespace (Optional)")
 
     if st.button("Ingest Documents"):
         if uploaded_files:
             try:
                 files = [("files", file) for file in uploaded_files]
-                payload = {"namespace": namespace}
+                payload = {"documents_namespace": documents_namespace}
                 response = requests.post(FASTAPI_URL, files=files, data=payload)
                 
                 if response.status_code == 200:

@@ -3,24 +3,16 @@ import os
 import tiktoken
 
 from utils.alerts import alert_exception, alert_info
-from typing import List
-from pinecone import Pinecone, ServerlessSpec
+from fastapi import UploadFile
+from fastapi import HTTPException
+from dotenv import load_dotenv
 
-from langchain_core.prompts import (
-    ChatPromptTemplate, 
-    MessagesPlaceholder
-)
-from langchain_core.messages import HumanMessage, AIMessage
-from langchain_pinecone import PineconeVectorStore
+from langchain_chroma import Chroma
+from langchain_core.prompts import (ChatPromptTemplate, MessagesPlaceholder)
 from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain.chains import (
-    LLMChain, 
-    ConversationalRetrievalChain, 
-    create_history_aware_retriever, 
-    create_retrieval_chain)
+from langchain.chains import (create_history_aware_retriever, create_retrieval_chain)
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai.chat_models import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
 from langchain_community.callbacks.manager import get_openai_callback
 from langchain_community.document_loaders import TextLoader, PyMuPDFLoader, Docx2txtLoader
 from langchain.text_splitter import (
@@ -45,11 +37,13 @@ from langchain.text_splitter import (
     CharacterTextSplitter,
 )
 
-from fastapi import UploadFile
-from fastapi import HTTPException
-from dotenv import load_dotenv
-
 load_dotenv()
+
+def num_tokens_from_string(string: str, encoding_name: str) -> int:
+    """Returns the number of tokens in a text string."""
+    encoding = tiktoken.get_encoding(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
 
 class BaseHandler():
     def __init__(
@@ -59,15 +53,14 @@ class BaseHandler():
             **kwargs
         ):
 
-        self.pinecone_api_key = os.getenv('PINECONE_API_KEY')
-        self.pinecone_env = os.getenv('PINECONE_ENVIRONMENT')
-        self.pinecone_index = os.getenv('PINECONE_INDEX')
-        self.docs_tmp_path = os.getenv('DOCS_TMP_PATH')
+        self.CHROMA_PERSIST_PATH = os.getenv('CHROMA_PERSIST_PATH')
+        self.DOCS_TMP_PATH = os.getenv('DOCS_TMP_PATH')
+
+        self.chat_model = chat_model
         self.llm_map = {
             'gpt-4o-mini': lambda _: ChatOpenAI(model='gpt-4o-mini', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
             'gpt-4o': lambda _: ChatOpenAI(model='gpt-4', temperature=temperature, openai_api_key=os.getenv('OPENAI_API_KEY')),
         }
-        self.chat_model = chat_model
 
         if kwargs.get('embeddings_model') == 'text-embedding-3-large':
             self.embeddings = OpenAIEmbeddings(
@@ -82,7 +75,7 @@ class BaseHandler():
             )
             self.dimensions = 1536
 
-    def load_documents(self, files: list[UploadFile], namespace: str = None) -> list[list[str]]:
+    def load_documents(self, files: list[UploadFile]) -> list[list[str]]:
         documents = []
 
         loader_map = {
@@ -97,7 +90,7 @@ class BaseHandler():
                 if file.filename.split(".")[-1] not in allowed_extensions:
                     raise HTTPException(status_code=400, detail="File type not permitted")
                 
-                dir_path = self.docs_tmp_path
+                dir_path = self.DOCS_TMP_PATH
 
                 with tempfile.NamedTemporaryFile(delete=False, prefix=file.filename + '___', dir=dir_path) as temp:
                     temp.write(file.file.read())
@@ -109,22 +102,25 @@ class BaseHandler():
         except Exception as e:
             alert_exception(e, "Error loading documents")
             raise HTTPException(status_code=500, detail=f"Error loading documents: {str(e)}")
-
-        
+       
         return documents
 
-    def ingest_documents(self, documents: list[list[str]], chunk_size: int = 1000, chunk_overlap: int = 200, **kwargs):
+    def ingest_documents(self, 
+                         documents: list[list[str]], 
+                         chunk_size: int = 1000, 
+                         chunk_overlap: int = 200, 
+                         **kwargs):
         """
-        documents: list of loaded documents
-        chunk_size: number of documents to ingest at a time
-        chunk_overlap: number of documents to overlap when ingesting
+        Suddivide i documenti e li indicizza in ChromaDB locale.
 
-        kwargs:
-            split_method: 'recursive', 'token', 'text', 'tokenizer', 'language', 'json', 'latex', 'python', 'konlpy', 'spacy', 'nltk', 'sentence_transformers', 'element_type', 'header_type', 'line_type', 'html_header', 'markdown_header', 'markdown', 'character'
+        Parametri:
+            documents: lista di documenti caricati
+            chunk_size: numero massimo di caratteri per chunk
+            chunk_overlap: sovrapposizione tra i chunk
+            split_method: metodo di splitting (es. 'recursive', 'token' etc.)
+            namespace: opzione per gestire diversi 'collection_name'
         """
-        pc = Pinecone(api_key = self.pinecone_api_key)
-        pc.list_indexes().names()
-
+        
         splitter_map = {
             'recursive': RecursiveCharacterTextSplitter,
             'token': TokenTextSplitter,
@@ -151,6 +147,17 @@ class BaseHandler():
         test_splitter = splitter_map[split_method](chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
         alert_info(f"Ingesting {len(documents)} document(s)...\nParams: chunk_size={chunk_size}, chunk_overlap={chunk_overlap}, split_method={split_method}")
+
+        persist_directory = self.CHROMA_PERSIST_PATH
+        collection_name = kwargs.get('namespace', 'default_collection')
+
+        # 1) Carica (o crea se non esiste) la collezione
+        vectorstore = Chroma(
+            embedding_function=self.embeddings,
+            collection_name=collection_name,
+            persist_directory=persist_directory
+        )
+
         for document in documents:
             split_document = test_splitter.split_documents(document)  
 
@@ -159,69 +166,62 @@ class BaseHandler():
                 tok = num_tokens_from_string(chunk.page_content, "cl100k_base")
                 # alert_info(f"curr chunk token: {tok}")
                 tokens = tokens + tok
+            
             alert_info(f"******** current document total token ********: {tokens}")
 
             try:
-                PineconeVectorStore.from_documents(
-                    split_document, 
-                    self.embeddings, 
-                    index_name=self.pinecone_index, 
-                    namespace=kwargs.get('namespace', None) # You can only specify a namespace if you have a premium Pinecone pod
-                )
+                # 2) Aggiungi i chunk alla collezione esistente
+                vectorstore.add_documents(split_document)
             except Exception as e:
                 alert_exception(e, "Error ingesting documents - Make sure you\'re dimensions match the embeddings model (1536 for text-embedding-3-small, 3072 for text-embedding-3-large)")
                 raise HTTPException(status_code=500, detail=f"Error ingesting documents: {str(e)}")
                 
     def chat(self, query: str, chat_history: list[str] = [], **kwargs):
         """
-        query: str
-        chat_history: list of previous chat messages
-        kwargs:
-            namespace: str
-            search_kwargs: dict
-        """
+        Esegue una chat query utilizzando i documenti indicizzati in ChromaDB.
 
-        # OK FUNZIONA
-        # ChatGPT bot test
-        # bot = ChatOpenAI(model='gpt-3.5-turbo', temperature=0.7, openai_api_key=os.getenv('OPENAI_API_KEY'))
-        # bot.invoke("Ciao, dimmmi qualcosa")
+        Parametri:
+            query: la query dell'utente
+            chat_history: cronologia chat
+            namespace: corrisponde a 'collection_name' in Chroma
+            search_kwargs: parametri per la ricerca (es. {'k': 5})
+        """      
 
         # alert_info(f"Querying with: {query} and chat history: {chat_history}\nParams: namespace={kwargs.get('namespace', None)}, search_kwargs={kwargs.get('search_kwargs', {'k': 5})}\nModel: {self.llm.model_name} with temperature: {self.llm.temperature}")
         try: 
-            pc = Pinecone(api_key = self.pinecone_api_key)
+            collection_name = kwargs.get('namespace', 'default_collection')
 
-            vectorstore = PineconeVectorStore.from_existing_index(
-                index_name=self.pinecone_index, 
-                embedding=self.embeddings, 
-                text_key='text', 
-                namespace=kwargs.get('namespace', None) # You can only specify a namespace if you have a premium Pinecone pod
+            vectorstore = Chroma(
+                embedding_function=self.embeddings,
+                collection_name=collection_name,
+                persist_directory=self.CHROMA_PERSIST_PATH
             )
 
             retriever = vectorstore.as_retriever(search_kwargs=kwargs.get('search_kwargs', {"k": 5}))
             
-            # 1 Prompt To Generate Search Query For Retriever
+            # 1 - Prompt per riformulare la domanda rispetto alla chat history
             contextualize_q_system_prompt = """Given a chat history and the latest user question \
             which might reference context in the chat history, formulate a standalone question \
             which can be understood without the chat history. Do NOT answer the question, \
             just reformulate it if needed and otherwise return it as is."""
 
             prompt_search_query = ChatPromptTemplate.from_messages([
-            ("system", contextualize_q_system_prompt),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("user","{input}"),
+                ("system", contextualize_q_system_prompt),
+                MessagesPlaceholder(variable_name="chat_history"),
+                ("user","{input}"),
             ])           
 
-            # 2 We use the create_history_aware_retriever chain to retrieve the relevant data from the vector store.
+            # 2 - Usare create_history_aware_retriever
             llm=self.llm_map[self.chat_model] 
             retriever_chain = create_history_aware_retriever(llm, retriever, prompt_search_query)   
 
-            # 3 Prompt To Get Response From LLM Based on Chat History
-            prefixSystem = "You are an expert Italian accountant, the topic is the compilation of the PF 2016 form of the Italian state."
+            # 3 - Prompt per ottenere la risposta
+            prefixSystem = "You are an expert Italian accountant, the topic is the compilation of the PF form of the Italian state."
             prompt_get_answer = ChatPromptTemplate.from_messages([
-            ("system", prefixSystem),
-            ("system", "Answer the user's questions based on the below context, if the context doesn't contain any relevant information to the question, don't make something up and just say 'I don't know':\\n\\n{context}"),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("user","{input}"),
+                ("system", prefixSystem),
+                ("system", "Answer the user's questions based on the below context, if the context doesn't contain any relevant information to the question, don't make something up and just say 'I don't know':\\n\\n{context}"),
+                MessagesPlaceholder(variable_name="chat_history"),
+                ("user","{input}"),
             ])   
 
             # 4 Document Chain
@@ -249,15 +249,7 @@ class BaseHandler():
                 "model_response": response,
                 "model_fee": openai_fee
             }
-
-            # return response
             
         except Exception as e:
             alert_exception(e, "Error chatting")
             raise HTTPException(status_code=500, detail=f"Error chatting: {str(e)}")
-
-def num_tokens_from_string(string: str, encoding_name: str) -> int:
-    """Returns the number of tokens in a text string."""
-    encoding = tiktoken.get_encoding(encoding_name)
-    num_tokens = len(encoding.encode(string))
-    return num_tokens

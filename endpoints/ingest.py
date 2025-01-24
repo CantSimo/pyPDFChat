@@ -9,11 +9,11 @@ router = APIRouter()
 @router.post("/ingest")
 async def ingest_documents(
     files: List[UploadFile],
-    namespace: Optional[str] = Form(None), 
+    documents_namespace: Optional[str] = Form(None), 
 ):
     handler = BaseHandler(
         embeddings_model='text-embedding-3-large' # Uncomment this kwarg to use the large embeddings model if you have Pinecone configured to that dimension size
     )
-    documents = handler.load_documents(files, namespace)
-    handler.ingest_documents(documents)
+    documents = handler.load_documents(files)
+    handler.ingest_documents(documents, namespace=documents_namespace)
     return {"message": "Documents ingested"}
